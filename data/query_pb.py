@@ -25,6 +25,8 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
+logging.getLogger().addHandler(logging.StreamHandler())
+
 # --------------------------
 # Helper functions
 # --------------------------
@@ -70,6 +72,16 @@ def fetch_gtfs():
                 logging.error(f"All {MAX_RETRIES} attempts failed.")
                 return None
 
+def get_cpu_temp():
+    """Read CPU temperature in Celsius."""
+    try:
+        with open("/sys/class/thermal/thermal_zone0/temp", "r") as f:
+            temp_milli = int(f.read().strip())
+        return temp_milli / 1000.0
+    except Exception as e:
+        logging.error(f"Failed to read CPU temperature: {e}")
+        return None
+
 # --------------------------
 # Main loop
 # --------------------------
@@ -77,7 +89,10 @@ if __name__ == "__main__":
     logging.info("Starting GTFS downloader.")
     while True:
         feed_content = fetch_gtfs()
+        cpu_temp = get_cpu_temp()
         if feed_content:
-            save_gtfs_feed(feed_content)
+            filepath = save_gtfs_feed(feed_content)
             cleanup_old_files()
+        if cpu_temp is not None:
+            logging.info(f"CPU Temperature: {cpu_temp:.1f}C")
         time.sleep(INTERVAL_SECONDS)
