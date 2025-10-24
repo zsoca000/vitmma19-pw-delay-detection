@@ -1,6 +1,6 @@
 # Self
 data/budapest_gtfs.db
-
+data/static_gtfs
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
