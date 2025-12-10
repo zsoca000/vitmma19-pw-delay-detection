@@ -19,9 +19,7 @@ from utils.time import (
 )
 
 
-
 def calculate_delays(record_path:Path, delay_path:Path, available_trip_ids:set, stop_times:pd.DataFrame)->None:
-
 
     realtime = pd.read_csv(record_path, low_memory=False)
     realtime = realtime[['route_id','trip_id','current_stop_sequence','timestamp']]
