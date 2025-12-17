@@ -557,12 +557,18 @@ def dynamic_node_features_by_bins(
         print(f"  Saved all bins for {record_path.stem}")
 
 
-def load_graph(seconds, dt, record_name, graphs_path:Path):
-    bin_code = int((seconds % (24 * 3600)) // (dt * 3600))
+def load_graph(bin_code, record_name, graphs_path:Path):
+    # bin_code = int((seconds % (24 * 3600)) // (dt * 3600))
     load_path = graphs_path / record_name / f"graph_bin_{bin_code}.pt"
 
     return torch.load(load_path, weights_only=False)
 
+def available_bin_codes(record_name:str, graphs_path:Path):
+    return set([
+        int(f.stem.replace("graph_bin_", ""))
+        for f in (graphs_path / record_name).iterdir()
+        if f.is_file() and f.name.startswith("graph_bin_") and f.suffix == ".pt"
+    ])
 
 def load_stop_id_to_idx(graphs_path:Path):
     with open(graphs_path.parent / 'stop_id_to_idx.json','r') as f:
