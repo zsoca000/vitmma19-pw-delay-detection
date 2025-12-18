@@ -1,3 +1,11 @@
+gtfs-realtime-bindings
+joblib
+matplotlib
+networkx
 numpy
-scipy
+pandas
+partridge
+requests
 scikit-learn
+tqdm
+numpy

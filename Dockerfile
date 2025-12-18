@@ -1,47 +1,33 @@
-# LAPTOP - ARM64
-FROM --platform=linux/arm64 ubuntu:22.04 AS cpu
-
-# Python
-RUN apt-get update && apt-get install -y \
-    build-essential cmake git python3 python3-dev python3-pip \
-    libopenblas-dev libblas-dev liblapack-dev ninja-build \
-    libffi-dev libssl-dev && rm -rf /var/lib/apt/lists/*
-RUN python3 -m pip install --upgrade pip setuptools wheel
-
-# Pytorch
-RUN pip3 install \
-  torch==2.6.0 \
-  torchvision==0.13.0 \
-  --index-url https://download.pytorch.org/whl/cpu
-
-# PyG
-RUN pip3 install torch_geometric
-RUN pip3 install \
-  torch-scatter==2.1.0 \
-  torch-sparse==0.6.17 \
-  torch-cluster==1.6.0 \
-  torch-spline-conv==1.2.1 \
-  -f https://data.pyg.org/whl/torch-2.6.0+cpu.html
+FROM pytorch/pytorch:2.6.0-cuda12.4-cudnn9-runtime
 
 WORKDIR /app
-COPY requirements.txt .
-RUN pip3 install -r requirements.txt 
-COPY ./src .
-RUN chmod +x run.sh
 
-CMD ["bash", "run.sh"]
+# Install system essentials
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 
-# PC - AMD64 + 2080Ti
-FROM pytorch/pytorch:2.6.0-cuda12.1-cudnn8-runtime AS gpu
-
-
-
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --upgrade pip wheel setuptools \
-    && pip install -r requirements.txt \
+# Install PyG Acceleration (Sensitive versions)
+RUN pip install --no-cache-dir \
+    torch-geometric \
+    pyg_lib \
+    torch_scatter \
+    torch_sparse \
+    torch_cluster \
+    torch_spline_conv \
     -f https://data.pyg.org/whl/torch-2.6.0+cu124.html
-COPY ./src .
+
+# Install standard requirements
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy your code folders
+COPY src/ ./src/
+COPY shared/ ./shared/
+COPY run.sh .
+
+# Prepare the execution script
 RUN chmod +x run.sh
 
-CMD ["bash", "run.sh"]
+# Expose TensorBoard port
+EXPOSE 6006
+
+CMD ["./run.sh"]
