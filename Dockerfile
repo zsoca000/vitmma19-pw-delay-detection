@@ -21,10 +21,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy your code folders
 COPY src/ ./src/
-COPY shared/ ./shared/
 COPY run.sh .
 
 # Prepare the execution script
+RUN mkdir shared
 RUN chmod +x run.sh
 
 # Expose TensorBoard port
