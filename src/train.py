@@ -12,6 +12,9 @@ from data_filter import load_train_test_split
 from shared import EndOfTripDelay, TripDataset
 from preprocess import load_scalers
 
+import logging
+logger = logging.getLogger("TripDelayGNN")
+
 
 class TripTrainer:
     def __init__(self, model, scalers, device, config, base_log_dir="./experiments"):
@@ -89,7 +92,7 @@ class TripTrainer:
 
             # Print every 50 batches
             if (i + 1) % 50 == 0:
-                print(f"    Batch [{i+1}/{len(loader)}] | Real MAE: {batch_mae_real:.2f}")
+                logger.info(f"    Batch [{i+1}/{len(loader)}] | Real MAE: {batch_mae_real:.2f}")
                 
         avg_mse = total_loss / len(loader)
         avg_mae = total_mae / len(loader)
@@ -110,7 +113,7 @@ class TripTrainer:
         if is_best:
             self.best_loss = current_loss
             torch.save(checkpoint, self.exp_dir / "checkpoints" / "best_model.pth")
-            print(f"--> Saved new best model to {self.exp_dir}")
+            logger.info(f"--> Saved new best model to {self.exp_dir}")
 
 
 
@@ -120,6 +123,9 @@ def train(
     exp_dir:Path,
     config:dict,
 ):
+    
+    logger.info(f"Starting training cycle with {len(record_names)} records.")
+    logger.info(f"Tunable hyperparameters: Epochs={config['num_epochs']}, LR={config['training']['lr']}, Batch={config['training']['batch_size']}")
     
     # Load scalers
     scalers = load_scalers(data_path)
@@ -133,6 +139,11 @@ def train(
         mlp_dims=config['model']['mlp_dims'],
         out_dim=config['model']['out_dim'],
     )
+
+    logger.info("--- Model Architecture Summary ---")
+    logger.info(str(model))
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    logger.info(f"Total Trainable Parameters: {trainable_params:,}")
     
     # Find
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -148,12 +159,12 @@ def train(
         epoch_mse_values = []
         epoch_mae_values = []
         
-        print(f"\n>>> Epoch {epoch+1} / {num_epochs}")
+        logger.info(f"\n>>> Epoch {epoch+1} / {num_epochs}")
         
         # Shuffle records so the model sees days in a different order each time
         random.shuffle(record_names)
         for record in record_names:
-            print(f"  Training on Record: {record}")
+            logger.info(f"  Training on Record: {record}")
             
             # Run the training loop for this record
             avg_mse, avg_mae = trainer.train_record(record, data_path)
@@ -175,21 +186,21 @@ def train(
         is_best = overall_epoch_mse < trainer.best_loss
         trainer.save_checkpoint(overall_epoch_mse, epoch, is_best=is_best)
         
-        print(f"End of Epoch {epoch+1} | Avg Real MAE: {overall_epoch_mae:.2f}")
-    
-    return trainer
+        logger.info(f"End of Epoch {epoch+1} | Avg Real MAE: {overall_epoch_mae:.2f}")
+        
+    return trainer.exp_dir
 
 
 if __name__ == "__main__":
     
     # LAPTOP
-    ROOT = Path('/mnt/c/Users/rdsup/Desktop/vitmma19-pw-delay-detection')
+    # ROOT = Path('/mnt/c/Users/rdsup/Desktop/vitmma19-pw-delay-detection')
     
     # Docker env
     # ROOT = Path("/app")
     
     # PC 2080Ti
-    # ROOT = Path("")
+    ROOT = Path("C:/Users/szeke/Desktop/vitmma19-pw-delay-detection")
 
     CONFIG_PATH = ROOT / "src" / "config.yaml"
     DATA_DIR = ROOT / 'shared' / 'data'

@@ -20,19 +20,14 @@ This stage covers the complete data filtering and preparation pipeline. Due to t
 - Remove unusable or corrupted records
 - Filter out **ad hoc trips** that are not present in the static GTFS dataset
 - Split days into **training** and **testing** sets  
-  - The split configuration is defined in:  
-    `shared/data/records.json`
+  - The split configuration is defined in: `shared/data/records.json`
 
 ---
 
 ### Delay Calculation
 - Based on the **filtered static and dynamic GTFS data**
 - Compute **end-of-trip delays** for all tracked trips (when available)
-- Stored attributes:
-  - `route_id`
-  - `trip_id`
-  - `delay`
-  - `t_start`
+- Stored attributes: `route_id`, `trip_id`, `delay`, `t_start`
 
 ---
 
@@ -40,12 +35,8 @@ This stage covers the complete data filtering and preparation pipeline. Due to t
 
 #### Static Graph Features (from Static GTFS)
 - Outlier filtering
-- **Edges**:
-  - `distance`
-  - `average_travel_time`
-- **Nodes**:
-  - `longitude`
-  - `latitude`
+- **Edges**: `distance`, `average_travel_time`
+- **Nodes** `longitude`, `latitude`
 
 #### Temporal Binning
 - Each day is split into **30-minute time bins**
@@ -53,11 +44,7 @@ This stage covers the complete data filtering and preparation pipeline. Due to t
 #### Dynamic Graph Features (from Dynamic GTFS)
 - Outlier filtering per time bin
 - **Node-level features** for each stop and time bin:
-  - `count`
-  - `mean`
-  - `std`
-  - `max`
-  - `min`  
+  - `count`, `mean`, `std`, `max`, `min`  
   (statistics of trips passing through the stop in the given interval)
 
 ---
