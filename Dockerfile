@@ -27,6 +27,11 @@ COPY run.sh .
 
 # Prepare the execution script
 ENV PYTHONPATH="/app"
+
+# 1. Force fix potential line ending issues if they come from Windows
+RUN sed -i 's/\r$//' run.sh
+
+# 2. Force execution permissions
 RUN chmod +x run.sh
 
 # Expose TensorBoard port
