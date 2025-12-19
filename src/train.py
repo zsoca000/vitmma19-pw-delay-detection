@@ -179,7 +179,10 @@ class MLP(nn.Module):
         for i in range(len(layer_sizes)-1):
             layers.append(nn.Linear(layer_sizes[i], layer_sizes[i+1]))
             if i < len(layer_sizes)-2:
+                layers.append(nn.BatchNorm1d(layer_sizes[i+1])) # batch norm
                 layers.append(nn.LeakyReLU(0.01))
+                layers.append(nn.Dropout(0.2)) # dropout
+                
         self.net = nn.Sequential(*layers)
 
     def forward(self, x):
@@ -189,6 +192,8 @@ class GCNWithEdge(nn.Module):
     def __init__(self, layer_sizes: list[int], edge_attr_dim: int):
         super().__init__()
         self.convs = nn.ModuleList()
+        self.norms = nn.ModuleList() # for batch norm
+
         for i in range(len(layer_sizes) - 1):
             nn_edge = nn.Sequential(
                 nn.Linear(edge_attr_dim, layer_sizes[i]*layer_sizes[i+1]),
@@ -201,12 +206,15 @@ class GCNWithEdge(nn.Module):
             torch.nn.init.xavier_uniform_(nn_edge[2].weight, gain=0.01) # Very small gain
 
             self.convs.append(NNConv(layer_sizes[i], layer_sizes[i+1], nn_edge, aggr='mean'))
+            self.norms.append(nn.BatchNorm1d(layer_sizes[i+1])) # for batch norm
 
     def forward(self, x, edge_index, edge_attr):
-        for conv in self.convs[:-1]:
+        for conv, norm in zip(self.convs[:-1], self.norms[:-1]):
             x = conv(x, edge_index, edge_attr)
+            x = norm(x) # Batch norm
             x = F.leaky_relu(x, negative_slope=0.01)
         x = self.convs[-1](x, edge_index, edge_attr)
+        x = self.norms[-1](x) # Batch norm
         return x
     
 class EndOfTripDelay(nn.Module):
@@ -225,7 +233,7 @@ class EndOfTripDelay(nn.Module):
         )
         
         self.MLP = MLP(
-            [embd_dim + 2] + mlp_dims + [out_dim]
+            [embd_dim + 4] + mlp_dims + [out_dim]
         )
 
     def forward(self, data):
@@ -240,12 +248,11 @@ class EndOfTripDelay(nn.Module):
         trip_batch = data.batch[data.trip_mask]
         # 4. Average trip pooling (per graph in the batch)
         # x will now have shape [batch_size, hidden_channels]
-        x = global_mean_pool(x_trips, trip_batch)
+        x = global_mean_pool(x_trips, trip_batch, size=data.num_graphs)
 
         # 5. Meta embedding (day and sec are already [batch_size, 1])
-        day = data.day.view(-1, 1) 
-        sec = data.sec.view(-1, 1)
-        x = torch.cat([x, day, sec], dim=-1)
+        time_emb = data.time_emb # .view(-1, 1)
+        x = torch.cat([x, time_emb], dim=-1)
 
         # 6. MLP for prediction
         return self.MLP(x)
@@ -274,17 +281,24 @@ class TripDataset(torch.utils.data.Dataset):
         df = load_delays(record_name,delays_path)
         df = self.filter_delays(df,dt=1/2)
 
-        # Training data
+        # The bins and the available trips
         self.bin_codes = df['bin_code'].to_numpy()
         self.trip_ids = df.index.to_numpy()
 
-        self.secs = scalers['sec'].transform(
-            torch.tensor(df['trip_start'].to_numpy(),dtype=torch.float32).unsqueeze(-1)
-        )
+        # ADD Cyclical Encoding (instead of MinMaxScaler)
+        # 1. Seconds (Period = 24*60*60)
+        raw_secs = torch.tensor(df['trip_start'].to_numpy(), dtype=torch.float32).unsqueeze(-1)
+        sec_norm = 2 * np.pi * raw_secs / (24*60*60)
+        self.sec_sin = torch.sin(sec_norm)
+        self.sec_cos = torch.cos(sec_norm)
+
+        # 2. Days (Period = 7)
+        raw_days = torch.tensor([[day]], dtype=torch.float32).expand_as(raw_secs)
+        day_norm = 2 * np.pi * raw_days / 7
+        self.day_sin = torch.sin(day_norm)
+        self.day_cos = torch.cos(day_norm)
         
-        day_tensor = torch.tensor([[day]], dtype=torch.float32)
-        self.days = scalers['day'].transform(day_tensor) * torch.ones_like(self.secs)
-        
+        # Delays
         self.delays = scalers['delay'].transform(
             torch.tensor(df['delay'].to_numpy(),dtype=torch.float32).unsqueeze(-1)
         )
@@ -296,13 +310,23 @@ class TripDataset(torch.utils.data.Dataset):
         mask = torch.zeros(num_nodes, dtype=torch.bool)
         mask[self.nodes_of_trips[self.trip_ids[idx]]] = True
 
+        time_emb=torch.cat([
+            self.sec_sin[idx], self.sec_cos[idx], 
+            self.day_sin[idx], self.day_cos[idx]
+        ], dim=-1)
+
+        # Shape [1, 4], for PyG batching
+        time_emb = time_emb.unsqueeze(0)  
+        
+        # Shape [1,1], for PyG batching
+        y = self.delays[idx].view(-1, 1)
+
         data = Data(
             x=g.x,
             edge_index=g.edge_index,
             edge_attr=g.edge_attr,
-            y=self.delays[idx],
-            day=self.days[idx],
-            sec=self.secs[idx],
+            y=y,
+            time_emb=time_emb,
             trip_mask=mask,
         )
         return data
@@ -349,7 +373,9 @@ class TripTrainer:
         self.model = model.to(device)
         self.scalers = scalers
         self.device = device
-        self.criterion = nn.MSELoss()
+        self.criterion = nn.HuberLoss(delta=1.0) # instead of nn.MSELoss(), to do not penalize outliers too much
+        
+         # 4. Optimizer and Scheduler
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=1e-3)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             self.optimizer, 'min', patience=3
@@ -377,7 +403,7 @@ class TripTrainer:
             
             # 1. Forward pass
             out = self.model(data)
-            target = data.y.view(-1, 1)
+            target = data.y
             
             # 2. Compute Loss (Z-Score space)
             loss = self.criterion(out, target)
@@ -427,12 +453,8 @@ class TripTrainer:
 
 
 
-if __name__ == '__main__':
+def train(num_epochs, root:Path):
 
-    num_epochs = 10
-
-    # Path
-    root = Path("/app/shared") # Path('/mnt/c/Users/rdsup/Desktop/vitmma19-pw-delay-detection/shared')
     data_path = root / 'data'
     experiments_path = root / 'experiments'
     
@@ -492,9 +514,10 @@ if __name__ == '__main__':
         print(f"End of Epoch {epoch+1} | Avg Real MAE: {overall_epoch_mae:.2f}")
 
 
+if __name__ == "__main__":
+    
+    num_epochs = 10
+    root = Path('/mnt/c/Users/rdsup/Desktop/vitmma19-pw-delay-detection/shared') # Path("/app/shared")
 
-    
-    
-
-    
+    train(num_epochs, root)
 
