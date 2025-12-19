@@ -1,18 +1,26 @@
 # Delay Prediction GNN – README
 
-## 1. Data Filtering and Preparation
+## Project Information
+
+- **Selected Topic**: End-of-trip delay prediction
+- **Student Name**: Szász Zsolt
+- **Aiming for +1 Mark**: Yes
+
+## Solution description
+
+### 1. Data Filtering and Preparation
 
 This stage covers the complete data filtering and preparation pipeline. Due to the complexity and heterogeneity of GTFS data, this process required deep insight into the data formats and extensive exploratory data analysis to identify and handle edge cases and systematic issues (e.g. *midnight cliff*, incomplete trips, ad hoc services).
 
 ---
 
-### Static GTFS Processing
+#### Static GTFS Processing
 - Retain **only records related to bus routes**
 - All other transportation modes are filtered out at this stage
 
 ---
 
-### Dynamic GTFS Processing
+#### Dynamic GTFS Processing
 - From approximately  
   **14 × 24 × 60** `feed_<yyyymmdd>_<hhmmss>.pb` files per period,
   aggregate data into roughly  
@@ -24,24 +32,24 @@ This stage covers the complete data filtering and preparation pipeline. Due to t
 
 ---
 
-### Delay Calculation
+#### Delay Calculation
 - Based on the **filtered static and dynamic GTFS data**
 - Compute **end-of-trip delays** for all tracked trips (when available)
 - Stored attributes: `route_id`, `trip_id`, `delay`, `t_start`
 
 ---
 
-### Graph Construction
+#### Graph Construction
 
-#### Static Graph Features (from Static GTFS)
+Static Graph Features (from Static GTFS)
 - Outlier filtering
 - **Edges**: `distance`, `average_travel_time`
 - **Nodes** `longitude`, `latitude`
 
-#### Temporal Binning
+Temporal Binning
 - Each day is split into **30-minute time bins**
 
-#### Dynamic Graph Features (from Dynamic GTFS)
+Dynamic Graph Features (from Dynamic GTFS)
 - Outlier filtering per time bin
 - **Node-level features** for each stop and time bin:
   - `count`, `mean`, `std`, `max`, `min`  
@@ -49,19 +57,19 @@ This stage covers the complete data filtering and preparation pipeline. Due to t
 
 ---
 
-### Resulting Data Artifacts
+#### Resulting Data Artifacts
 - `delays/<yyyymmdd>.csv`  
   Contains end-of-trip delays and trip start times for all tracked trips on the given day
 - `graphs/<yyyymmdd>/graph_<bin_code>.pt`  
   PyTorch graph object containing static and dynamic features for the specified day and time bin
 
-## 2. Baseline Model
+### 2. Baseline Model
 
 As a baseline, a simple data-driven approach was implemented using only the aggregated delay information from the `delays/<yyyymmdd>.csv` files, without any graph structure or neural networks. The goal was to establish a lower-bound performance reference.
 
 ---
 
-### Data Selection
+#### Data Selection
 - For each **day type** (Monday, Tuesday, …):
   - One `delays/<yyyymmdd>.csv` file was selected for training
   - One `delays/<yyyymmdd>.csv` file was selected for testing
@@ -69,9 +77,9 @@ As a baseline, a simple data-driven approach was implemented using only the aggr
 
 ---
 
-### Baseline Variants
+#### Baseline Variants
 
-#### Route-Based Model
+Route-Based Model
 - Prediction strategy:
   - Compute the **mean delay per route**, aggregated over the training day
 - Evaluation result:
@@ -79,7 +87,7 @@ As a baseline, a simple data-driven approach was implemented using only the aggr
 
 ---
 
-#### Route-Period Model
+Route-Period Model
 - Prediction strategy:
   - Compute the **mean delay per route and time period**, aggregated over the training day
 - Time periods:
@@ -89,18 +97,18 @@ As a baseline, a simple data-driven approach was implemented using only the aggr
 
 ---
 
-### Remarks
+#### Remarks
 - These baselines rely solely on historical averaging
 - No spatial, temporal continuity, or interaction effects are modeled
 - The results provide a strong reference point for evaluating the added value of graph-based and learning-based approaches
 
-## 3. Feature Scaling Strategy
+### 3. Feature Scaling Strategy
 
 To ensure stable and successful model training, feature scaling was applied consistently across all training data. The scaling process was designed to avoid data leakage, preserve temporal structure, and handle known GTFS-specific issues such as the *midnight cliff*.
 
 ---
 
-### Fitting Procedure
+#### Fitting Procedure
 - All scaling parameters were fitted **exclusively on training days** (`<yyyymmdd>`)
 - Inputs used for fitting:
   - `delays/<yyyymmdd>.csv` (end-of-trip delays and trip start times)
@@ -113,17 +121,17 @@ To ensure stable and successful model training, feature scaling was applied cons
 
 ---
 
-### Temporal Features
+#### Temporal Features
 In addition to graph features, temporal context was incorporated using **day type** and **time-of-day** information. Two alternative encoding strategies were evaluated:
 
-#### Min–Max Encoding
+1. Min–Max Encoding
 - Day of week mapped to `[-1, 1]`  
   - Monday → `-1`, Sunday → `1`
 - Time of day mapped to `[-1, 1]`  
   - `0h → -1`, `24h → 1`
 - Resulting in **2 temporal features**
 
-#### Periodic Encoding (Midnight-Cliff Safe)
+2. Periodic Encoding (Midnight-Cliff Safe)
 - Sine and cosine encoding to preserve periodic continuity
 - Features:
   - `sin`, `cos` with **weekly period** (day of week)
@@ -133,13 +141,13 @@ In addition to graph features, temporal context was incorporated using **day typ
 
 ---
 
-## 4. Model development
+### 4. Model development
 
 The first learning-based approach leverages both **trip-level delay data** and **time-dependent graph representations**. The core idea is to condition the prediction on the trip identity while extracting spatiotemporal context from the corresponding graph snapshot.
 
 ---
 
-### Inputs
+#### Inputs
 - **Trip identifiers**: `day`, `trip_id`
 - From `trip_id`, the following are implicitly available:
   - Trip start time
@@ -147,20 +155,20 @@ The first learning-based approach leverages both **trip-level delay data** and *
 
 ---
 
-### Graph Selection
+#### Graph Selection
 - The trip start time and day are used to select the corresponding
   **30-minute graph snapshot** of that day
 - This graph encodes the dynamic traffic state for the relevant time window
 
 ---
 
-### Graph Feature Extraction
+#### Graph Feature Extraction
 - The selected graph is processed using a stack of **NNConv layers**
 - These layers aggregate information from neighboring nodes, conditioned on edge features
 
 ---
 
-### Trip-Level Pooling
+#### Trip-Level Pooling
 - From the resulting node embeddings:
   - **Average pooling** is performed over the nodes belonging to the trip’s stop sequence
   - The stop sequence defines a subgraph-specific node set
@@ -168,7 +176,7 @@ The first learning-based approach leverages both **trip-level delay data** and *
 
 ---
 
-### Prediction Head
+#### Prediction Head
 - The pooled graph features are concatenated with:
   - Encoded day information
   - Encoded trip start time
@@ -178,7 +186,7 @@ The first learning-based approach leverages both **trip-level delay data** and *
 
 ---
 
-### Motivation
+#### Motivation
 - Captures **spatial dependencies** via graph convolutions
 - Incorporates **temporal context** through time-dependent graph snapshots
 - Aligns naturally with GTFS semantics (trip → stops → route)
@@ -186,13 +194,13 @@ The first learning-based approach leverages both **trip-level delay data** and *
 This strategy serves as the baseline graph-neural formulation upon which more advanced temporal and sequence-aware models can be built.
 
 
-## 5. Data Handling
+### 5. Data Handling
 
 This section describes the current data-loading and batching strategy used during training, along with identified limitations and planned improvements.
 
 ---
 
-### Current Training-Time Data Flow
+#### Current Training-Time Data Flow
 - During each epoch, training iterates **randomly over the recorded training days** (`<yyyymmdd>`)
 - For a selected day:
   - Load `delays/<yyyymmdd>.csv` into memory
@@ -201,7 +209,7 @@ This section describes the current data-loading and batching strategy used durin
 
 ---
 
-### Trip Filtering
+#### Trip Filtering
 - Trips are filtered out if:
   - Their scheduled start time does not correspond to any available  
     `graph_<bin_code>.pt` file for that day
@@ -209,7 +217,7 @@ This section describes the current data-loading and batching strategy used durin
 
 ---
 
-### Batching Strategy
+#### Batching Strategy
 - After filtering, trips are grouped into batches
 - Graph batching is handled via  
   `torch_geometric.loader.DataLoader`
@@ -220,13 +228,13 @@ This section describes the current data-loading and batching strategy used durin
 
 ---
 
-### Limitations
+#### Limitations
 - Each trip is associated with a **single 30-minute graph snapshot**
 - Traffic conditions evolving during the trip are not explicitly modeled
 
 ---
 
-### Planned Improvement
+#### Planned Improvement
 - Load the original `<yyyymmdd>.csv` used for full data generation
 - For each trip:
   - Query or construct a **composite graph** that integrates traffic information over the entire trip duration
@@ -239,7 +247,7 @@ This section describes the procedures for evaluating the model on reserved data 
 
 ---
 
-### Evaluation Procedure
+#### Evaluation Procedure
 - Reserved evaluation data is stored separately from training data
 - Iteration over evaluation trips follows the **same procedure as training**:
   - Load the corresponding `delays/<yyyymmdd>.csv`
@@ -249,13 +257,60 @@ This section describes the procedures for evaluating the model on reserved data 
 
 ---
 
-### Inference Considerations
+#### Inference Considerations
 - **Key difference from evaluation**:
   - In real-world inference, future traffic data is **not available**
 - Strategy for inference:
   - Use a past graph snapshot that matches the **same day of week** and **time interval**
   - This serves as an approximation of expected traffic conditions based on historical patterns
 - This approach ensures the model can generate realistic delay predictions even without live traffic feeds
+
+## Extra Credit Justification
+
+I believe this work deserves an extra mark for the following reasons:
+
+* **Extensive Data Exploration:** I conducted a detailed analysis of a large-scale dataset, handling massive volumes of raw trip records. My exploration focused on identifying hidden spatial patterns and temporal dependencies that standard models often miss.
+* **Time-Sensitive GNN Architecture:** To address the temporal complexity discovered during my analysis, I implemented an advanced **NNConv (Neural Network Convolution)** architecture. This allows the GNN to learn from multidimensional edge features, capturing how the relationship between locations changes over time.
+* **Iterative Strategy Refinement:** I continuously adapted my modeling strategy to overcome training challenges. I experimented with various architectural combinations - systematically testing the inclusion of BatchNorm, switching to Huber loss for outlier robustness, and tuning LeakyReLU and Dropout. This iterative "trial-and-error" approach was essential to transitioning from a non-converging model to one that successfully captured the problem's underlying patterns.
+* **Performance Breakthrough:** Through these successive refinements, I achieved a significant performance leap. My GNN approach reduced the Mean Absolute Error (MAE) from the 86-second baseline down to **66 seconds**. This improvement (approx. 23%) is captured in the included experiment `run_20251219_104026`.
+
+---
+
+## Docker Instructions
+
+Run the following command in the root directory of the repository to build the Docker image. This will install all dependencies, including PyTorch Geometric and TensorBoard:
+
+### Build
+
+### Build
+Run the following command in the root directory to build the image. This installs all dependencies, including PyTorch Geometric and TensorBoard:
+
+```bash
+docker build -t dl-project .
+```
+
+### Run
+
+The data preprocessing is demanding, so the filtered data is included in the repository. Run the container using the following command (PowerShell syntax):
+
+```bash
+docker run --gpus all `
+  -v "$(pwd)/shared:/app/shared" `
+  -v "$(pwd)/log:/app/log" `
+  dl-project
+```
+- Volumes: The `shared` folder is mounted to persist data and experiments, while the `log` folder ensures execution logs are saved to your host machine.
+
+### TensorBoard Usage
+
+To monitor training progress, loss curves, and MAE metrics in real-time:
+1. Open a separate terminal on your host machine.
+2. Run the following command:
+
+    ```bash
+    tensorboard --logdir=shared/experiments 
+    ```
+3. Open your browser and navigate to: `http://localhost:6006`
 
 
 
