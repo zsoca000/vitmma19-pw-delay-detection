@@ -3,8 +3,8 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 from torch_geometric.data import Data
-from utils.time import name_to_day
-from data_filter import load_delays,load_trip_idx_list
+from src.utils.time import name_to_day
+from src.data_filter import load_delays,load_trip_idx_list
 
 
 class TripDataset(torch.utils.data.Dataset):

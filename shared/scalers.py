@@ -1,6 +1,5 @@
 import torch
 
-
 class StandardScaler:
     def __init__(self, eps=1e-8):
         self.mean = None

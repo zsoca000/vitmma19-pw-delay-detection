@@ -8,9 +8,9 @@ from pathlib import Path
 from torch_geometric.loader import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from data_filter import load_train_test_split
+from src.data_filter import load_train_test_split
 from shared import EndOfTripDelay, TripDataset
-from preprocess import load_scalers
+from src.preprocess import load_scalers
 
 import logging
 logger = logging.getLogger("TripDelayGNN")

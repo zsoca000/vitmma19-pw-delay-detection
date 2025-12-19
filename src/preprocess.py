@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from tqdm import tqdm
 from pathlib import Path
-from data_filter import load_train_test_split, load_delays
+from src.data_filter import load_train_test_split, load_delays
 from shared.scalers import StandardScaler, MinMaxScaler
 
 

@@ -8,9 +8,9 @@ import matplotlib.pyplot as plt
 from torch_geometric.loader import DataLoader
 from shared.models import EndOfTripDelay 
 from shared.datasets import TripDataset
-from data_filter import load_train_test_split
-from utils.time import name_to_day
-from preprocess import load_scalers
+from src.data_filter import load_train_test_split
+from src.utils.time import name_to_day
+from src.preprocess import load_scalers
 
 import logging
 logger = logging.getLogger("TripDelayGNN")
@@ -86,7 +86,7 @@ def evaluation(
     logger.info(f"CSV saved: {csv_path}")
 
     save_final_report(df, exp_dir)
-    visualize_daily_results(df, exp_dir)
+    # visualize_daily_results(df, exp_dir) # LateX issue
 
 
 def save_final_report(df: pd.DataFrame, exp_dir: Path):

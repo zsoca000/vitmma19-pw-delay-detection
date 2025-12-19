@@ -1,15 +1,15 @@
-from train import train
-from evaluation import evaluation
+from src.train import train
+from src.evaluation import evaluation
 from pathlib import Path
-from data_filter import load_train_test_split
-import logging
-from utils.logging_setup import setup_logger
+from src.data_filter import load_train_test_split
+from src.utils.logging_setup import setup_logger
 import yaml
 
 
 # Dirs and paths
+ROOT = Path(__file__).parent.resolve()
 # ROOT = Path("/app")
-ROOT = Path("C:/Users/szeke/Desktop/vitmma19-pw-delay-detection")
+# ROOT = Path("C:/Users/szeke/Desktop/vitmma19-pw-delay-detection")
 
 CONFIG_PATH = ROOT / "src" / "config.yaml"
 DATA_DIR = ROOT / 'shared' / 'data'

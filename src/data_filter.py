@@ -9,7 +9,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from torch_geometric.data import Data
 from google.transit import gtfs_realtime_pb2
-from utils.time import (
+
+from src.utils.time import (
     seconds_to_hhmmss,
     hhmmss_to_seconds,
     timestamp_to_seconds,
