@@ -388,7 +388,7 @@ class TripTrainer:
     def train_record(self, record_name, data_path, epoch):
         # Load dataset for this specific record
         dataset = TripDataset(record_name, data_path, self.scalers)
-        loader = DataLoader(dataset, batch_size=32, shuffle=True)
+        loader = DataLoader(dataset, batch_size=32, shuffle=True, drop_last=True)
         
         # Get the standard deviation from the scaler (for delay)
         delay_std = self.scalers['delay'].std
@@ -517,7 +517,15 @@ def train(num_epochs, root:Path):
 if __name__ == "__main__":
     
     num_epochs = 10
-    root = Path('/mnt/c/Users/rdsup/Desktop/vitmma19-pw-delay-detection/shared') # Path("/app/shared")
 
+    # LAPTOP
+    # root = Path('/mnt/c/Users/rdsup/Desktop/vitmma19-pw-delay-detection/shared')
+    
+    # Docker env
+    # root = Path("/app/shared")
+    
+    # PC 2080Ti
+    root = Path("shared")
+    
     train(num_epochs, root)
 
