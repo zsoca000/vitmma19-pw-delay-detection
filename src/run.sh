@@ -1,4 +1,5 @@
 #!/bin/bash
+export PYTHONPATH="${PYTHONPATH}:/app"
 set -e
 
 echo "--- Directory Check ---"

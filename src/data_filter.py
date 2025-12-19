@@ -9,9 +9,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from torch_geometric.data import Data
 from google.transit import gtfs_realtime_pb2
-
-root = Path.cwd().parent
-sys.path.append(str(root))
 plt.rcParams.update({"text.usetex": True, "font.family": "Computer Modern"}) 
 from utils.time import (
     seconds_to_hhmmss,

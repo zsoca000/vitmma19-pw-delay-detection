@@ -1,0 +1,14 @@
+training:
+  batch_size: 42
+  lr: 0.001
+  patience: 3
+
+num_epochs: 12
+
+model:
+  in_dim: 7
+  gcn_dims: [32,32]
+  edge_attr_dim: 2
+  embd_dim: 16
+  mlp_dims: [64,32]
+  out_dim: 1
