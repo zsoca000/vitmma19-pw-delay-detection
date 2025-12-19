@@ -343,3 +343,31 @@ Contains executable scripts that define the main workflow of the project.
 
 ---
 
+### `shared/` — Core Modules and Data Assets
+
+- **`data/`**
+  The central repository for preprocessed artifacts. It stores synchronized `delays/<yyyymmdd>.csv` labels and corresponding `graphs/<yyyymmdd>/graph_<bin_code>.pt` geometric data, structured for efficient batch loading during training.
+
+- **`experiments/`**
+  The directory for experiment tracking and model serialization. It contains training logs and model checkpoints, including the benchmark-surpassing run `run_20251219_104026`.
+
+- **`datasets.py`**
+  Implements the `TripDataset` class, extending PyTorch's `Dataset` logic. It manages the temporal iteration through graph records and implements a sophisticated caching mechanism to optimize I/O performance during the training cycle.
+
+- **`models.py`**
+  The architectural blueprint of the project. It defines the custom Graph Neural Network (GNN) and its constitutive sub-modules (NNConv blocks, MLP heads), allowing for flexible experimentation with model depth and feature integration.
+
+- **`scalers.py`**
+  Contains the normalization and standardization logic. These scalers ensure that multidimensional node and edge features are properly transformed into a consistent numerical range, which is vital for the stability of GNN gradients.
+
+### `notebook/` — Exploratory Research & Prototyping
+
+- **`01_preprocess.ipynb`** Detailed exploratory data analysis (EDA) of the raw trip records. This notebook documents the discovery of spatial-temporal patterns and the iterative design of the data filtering and transformation pipeline.
+
+- **`02_baseline.ipynb`** Establishment of performance benchmarks. Includes statistical analysis of delay distributions and the implementation of baseline models to quantify the relative improvement gained by the GNN approach.
+
+- **`03_graph_structure.ipynb`** Research and development of the graph topology. This notebook covers the logic for node-edge mapping and the organization of geometric data artifacts (`.pt` files) used by the final model.
+
+- **`03_train.ipynb`** Prototyping of the neural architectures and the training loop. This served as the sandbox for testing the incremental modeling strategies before they were migrated to the core `src` package.
+
+
